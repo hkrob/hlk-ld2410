@@ -1,0 +1,442 @@
+esphome:
+  name: hlk-ld2410
+  # hlk-ld2410-v1.3
+  # confirmed working as of 20230414 using ESPHOME v2023.3.2 
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+  # TTGO 
+
+logger:
+  baud_rate: 0
+  level: WARN
+
+api:
+ota:
+wifi:
+  networks:
+  - ssid: !secret wifi1_ssid
+    password: !secret wifi1_pass
+  - ssid: !secret wifi2_ssid
+    password: !secret wifi2_pass
+  - ssid: !secret wifi3_ssid
+    password: !secret wifi3_pass
+  ap:
+    ssid: "hlk-ld2410 Fallback"
+    password: !secret esp_fallbackpass
+
+captive_portal:
+web_server:
+  port: 80
+
+switch:
+  - platform: restart
+    name: hlk-ld2410 restart
+
+uart:
+  id: uart1
+  tx_pin: 32
+  rx_pin: 33
+  baud_rate: 256000    
+  parity: NONE
+  stop_bits: 1
+
+# adjust these to your situation
+ld2410:
+  timeout: 2s
+  max_move_distance : 2.25m
+  max_still_distance: 2.25m
+  g0_move_threshold: 40
+  g0_still_threshold: 20
+  g1_move_threshold: 40
+  g1_still_threshold: 20
+  g2_move_threshold: 40
+  g2_still_threshold: 20
+  g3_move_threshold: 40
+  g3_still_threshold: 30
+  g4_move_threshold: 40
+  g4_still_threshold: 30
+  g5_move_threshold: 40
+  g5_still_threshold: 30
+  g6_move_threshold: 40
+  g6_still_threshold: 30
+  g7_move_threshold: 40
+  g7_still_threshold: 40
+  g8_move_threshold: 40
+  g8_still_threshold: 50
+
+sensor:
+  - platform: ld2410
+    moving_distance:
+      name : Moving Distance
+      id: ld2410_movingDistance
+    still_distance:
+      name: Still Distance
+      id: ld2410_stillDistance
+    moving_energy:
+      name: Move Energy
+      id: ld2410_moveEnergy
+    still_energy:
+      name: Still Energy
+      id: ld2410_stillEnergy
+    detection_distance:
+      name: Detection Distance
+  - platform: wifi_signal
+    name: "ttgo wifi signal"
+    update_interval: 60s      
+
+binary_sensor:
+  - platform: ld2410
+    has_target:
+      name: Presence
+      filters:
+        # delayed_on prevents false positives when background noise spikes randomly
+        - delayed_on: 2s
+        # delayed_off prevents false negatives
+        - delayed_off: 10s
+    has_moving_target:
+      name: Moving Target
+      id: ld2410_movingTarget
+    has_still_target:
+      name: Still Target
+      id: ld2410_stillTarget
+  - platform: gpio
+    pin: 37
+    name: "Presence"
+    id: ld2410_presence
+    device_class: motion
+    filters:
+      # delayed_on prevents false positives when background noise spikes randomly
+      - delayed_on: 2s
+      # delayed_off prevents false negatives
+      - delayed_off: 10s    
+  - platform: status
+    name: "Node Status"
+    id: system_status    
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: ESP IP Address
+      id: esp_ip_address
+    ssid:
+      name: ESP Connected SSID
+      id: esp_connected_ssid
+    bssid:
+      name: ESP Connected BSSID
+    mac_address:
+      name: ESP Mac Wifi Address
+    scan_results:
+      name: ESP Latest Scan Results
+
+time:
+  - platform: sntp
+    id: sntp_time
+# Display Stuff
+color:
+  - id: my_red
+    red: 100%
+    green: 0%
+    blue: 0%
+  - id: my_yellow
+    red: 100%
+    green: 100%
+    blue: 0%
+  - id: my_green
+    red: 0%
+    green: 100%
+    blue: 0%
+  - id: my_blue
+    red: 0%
+    green: 0%
+    blue: 100%
+  - id: my_gray
+    red: 50%
+    green: 50%
+    blue: 50%
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO19
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto20
+    size: 20
+  - file: 'fonts/SourceSansPro-Bold.ttf'
+    id: sourcesans100
+    size: 100
+    glyphs: "0123456789:"
+  - file: 'fonts/SourceSansPro-Regular.ttf'
+    id: sourcesans24
+    size: 24
+  - file: 'fonts/SourceSansPro-Regular.ttf'
+    id: sourcesans14
+    size: 14
+
+display:
+  - platform: st7789v
+    model: TTGO TDisplay 135x240
+    backlight_pin: GPIO4
+    cs_pin: GPIO5
+    dc_pin: GPIO16
+    reset_pin: GPIO23
+    rotation: 90
+    id: mydisplay
+    lambda: |-
+      it.rectangle(0,  0, it.get_width(), it.get_height(), id(my_blue));
+      it.rectangle(0, 20, it.get_width(), it.get_height(), id(my_blue));   // header bar
+      if (id(system_status).state) {
+        it.print(235, 3, id(sourcesans14), id(my_yellow), TextAlign::TOP_RIGHT, "Online");
+        it.printf(2, 3, id(sourcesans14),  "%s %s", id(esp_ip_address).state.c_str(), id(esp_connected_ssid).state.c_str());
+        it.strftime(2, 18, id(sourcesans14), "%H:%M:%S", id(sntp_time).now());
+      }
+      else {
+        it.print(235, 3, id(sourcesans14), id(my_red), TextAlign::TOP_RIGHT, "Offline");
+      }
+      if (id(ld2410_presence).state) {
+        it.printf(2, 35, id(sourcesans14), "GPIO Presence ON");
+      }
+      else {
+        it.printf(2, 35, id(sourcesans14),id(my_red), "GPIO Presence OFF");
+      }
+      if (id(ld2410_stillTarget).state) {
+        it.printf(2, 50, id(sourcesans14), "Still Target ON");
+      }
+      else {
+        it.printf(2, 50, id(sourcesans14),id(my_red), "Still Target OFF");
+      }
+      if (id(ld2410_movingTarget).state) {
+        it.printf(2, 65, id(sourcesans14), "Moving Target ON");
+      }
+      else {
+        it.printf(2, 65, id(sourcesans14),id(my_red), "Moving Target OFF");
+      }
+      it.printf(2, 80, id(sourcesans14), "Still Energy %.0f%%", id(ld2410_stillEnergy).state, id(ld2410_stillDistance).state );
+      it.printf(110, 80, id(sourcesans14), "Still Distance %.0f%cm", id(ld2410_stillDistance).state );
+      it.printf(2, 95, id(sourcesans14), "Move Energy %.0f%%", id(ld2410_moveEnergy).state, id(ld2410_moveEnergy).state );
+      it.printf(112, 95, id(sourcesans14), "Moving Distance %.0f%cm", id(ld2410_movingDistance).state );      
+      
+
+
+
+esphome:
+  name: hlk-ld2410
+  # hlk-ld2410-v1.3
+  # confirmed working as of 20230414 using ESPHOME v2023.3.2 
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+  # TTGO 
+
+logger:
+  baud_rate: 0
+  level: WARN
+
+api:
+ota:
+wifi:
+  networks:
+  - ssid: !secret wifi1_ssid
+    password: !secret wifi1_pass
+  - ssid: !secret wifi2_ssid
+    password: !secret wifi2_pass
+  - ssid: !secret wifi3_ssid
+    password: !secret wifi3_pass
+  ap:
+    ssid: "hlk-ld2410 Fallback"
+    password: !secret esp_fallbackpass
+
+captive_portal:
+web_server:
+  port: 80
+
+switch:
+  - platform: restart
+    name: hlk-ld2410 restart
+
+uart:
+  id: uart1
+  tx_pin: 32
+  rx_pin: 33
+  baud_rate: 256000    
+  parity: NONE
+  stop_bits: 1
+
+# adjust these to your situation
+ld2410:
+  timeout: 2s
+  max_move_distance : 2.25m
+  max_still_distance: 2.25m
+  g0_move_threshold: 40
+  g0_still_threshold: 20
+  g1_move_threshold: 40
+  g1_still_threshold: 20
+  g2_move_threshold: 40
+  g2_still_threshold: 20
+  g3_move_threshold: 40
+  g3_still_threshold: 30
+  g4_move_threshold: 40
+  g4_still_threshold: 30
+  g5_move_threshold: 40
+  g5_still_threshold: 30
+  g6_move_threshold: 40
+  g6_still_threshold: 30
+  g7_move_threshold: 40
+  g7_still_threshold: 40
+  g8_move_threshold: 40
+  g8_still_threshold: 50
+
+sensor:
+  - platform: ld2410
+    moving_distance:
+      name : Moving Distance
+      id: ld2410_movingDistance
+    still_distance:
+      name: Still Distance
+      id: ld2410_stillDistance
+    moving_energy:
+      name: Move Energy
+      id: ld2410_moveEnergy
+    still_energy:
+      name: Still Energy
+      id: ld2410_stillEnergy
+    detection_distance:
+      name: Detection Distance
+  - platform: wifi_signal
+    name: "ttgo wifi signal"
+    update_interval: 60s      
+
+binary_sensor:
+  - platform: ld2410
+    has_target:
+      name: Presence
+      filters:
+        # delayed_on prevents false positives when background noise spikes randomly
+        - delayed_on: 2s
+        # delayed_off prevents false negatives
+        - delayed_off: 10s
+    has_moving_target:
+      name: Moving Target
+      id: ld2410_movingTarget
+    has_still_target:
+      name: Still Target
+      id: ld2410_stillTarget
+  - platform: gpio
+    pin: 37
+    name: "Presence"
+    id: ld2410_presence
+    device_class: motion
+    filters:
+      # delayed_on prevents false positives when background noise spikes randomly
+      - delayed_on: 2s
+      # delayed_off prevents false negatives
+      - delayed_off: 10s    
+  - platform: status
+    name: "Node Status"
+    id: system_status    
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: ESP IP Address
+      id: esp_ip_address
+    ssid:
+      name: ESP Connected SSID
+      id: esp_connected_ssid
+    bssid:
+      name: ESP Connected BSSID
+    mac_address:
+      name: ESP Mac Wifi Address
+    scan_results:
+      name: ESP Latest Scan Results
+
+time:
+  - platform: sntp
+    id: sntp_time
+# Display Stuff
+color:
+  - id: my_red
+    red: 100%
+    green: 0%
+    blue: 0%
+  - id: my_yellow
+    red: 100%
+    green: 100%
+    blue: 0%
+  - id: my_green
+    red: 0%
+    green: 100%
+    blue: 0%
+  - id: my_blue
+    red: 0%
+    green: 0%
+    blue: 100%
+  - id: my_gray
+    red: 50%
+    green: 50%
+    blue: 50%
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO19
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto20
+    size: 20
+  - file: 'fonts/SourceSansPro-Bold.ttf'
+    id: sourcesans100
+    size: 100
+    glyphs: "0123456789:"
+  - file: 'fonts/SourceSansPro-Regular.ttf'
+    id: sourcesans24
+    size: 24
+  - file: 'fonts/SourceSansPro-Regular.ttf'
+    id: sourcesans14
+    size: 14
+
+display:
+  - platform: st7789v
+    model: TTGO TDisplay 135x240
+    backlight_pin: GPIO4
+    cs_pin: GPIO5
+    dc_pin: GPIO16
+    reset_pin: GPIO23
+    rotation: 90
+    id: mydisplay
+    lambda: |-
+      it.rectangle(0,  0, it.get_width(), it.get_height(), id(my_blue));
+      it.rectangle(0, 20, it.get_width(), it.get_height(), id(my_blue));   // header bar
+      if (id(system_status).state) {
+        it.print(235, 3, id(sourcesans14), id(my_yellow), TextAlign::TOP_RIGHT, "Online");
+        it.printf(2, 3, id(sourcesans14),  "%s %s", id(esp_ip_address).state.c_str(), id(esp_connected_ssid).state.c_str());
+        it.strftime(2, 18, id(sourcesans14), "%H:%M:%S", id(sntp_time).now());
+      }
+      else {
+        it.print(235, 3, id(sourcesans14), id(my_red), TextAlign::TOP_RIGHT, "Offline");
+      }
+      if (id(ld2410_presence).state) {
+        it.printf(2, 35, id(sourcesans14), "GPIO Presence ON");
+      }
+      else {
+        it.printf(2, 35, id(sourcesans14),id(my_red), "GPIO Presence OFF");
+      }
+      if (id(ld2410_stillTarget).state) {
+        it.printf(2, 50, id(sourcesans14), "Still Target ON");
+      }
+      else {
+        it.printf(2, 50, id(sourcesans14),id(my_red), "Still Target OFF");
+      }
+      if (id(ld2410_movingTarget).state) {
+        it.printf(2, 65, id(sourcesans14), "Moving Target ON");
+      }
+      else {
+        it.printf(2, 65, id(sourcesans14),id(my_red), "Moving Target OFF");
+      }
+      it.printf(2, 80, id(sourcesans14), "Still Energy %.0f%%", id(ld2410_stillEnergy).state, id(ld2410_stillDistance).state );
+      it.printf(110, 80, id(sourcesans14), "Still Distance %.0f%cm", id(ld2410_stillDistance).state );
+      it.printf(2, 95, id(sourcesans14), "Move Energy %.0f%%", id(ld2410_moveEnergy).state, id(ld2410_moveEnergy).state );
+      it.printf(112, 95, id(sourcesans14), "Moving Distance %.0f%cm", id(ld2410_movingDistance).state );      
