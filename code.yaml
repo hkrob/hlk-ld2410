@@ -39,7 +39,7 @@ switch:
 # After moving them up to D7 D8 I get readings on the rest of the sensors
 # 
 uart:
-  id: uart1
+  id: myuart
   tx_pin: 32
   rx_pin: 33
   baud_rate: 256000    
