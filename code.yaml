@@ -26,7 +26,6 @@ wifi:
   ap:
     ssid: "hlk-ld2410 Fallback"
     password: !secret esp_fallbackpass
-
 captive_portal:
 web_server:
   port: 80
@@ -35,9 +34,7 @@ switch:
   - platform: restart
     name: hlk-ld2410 restart
 
-# feedback from someone - On a nodemcu v3 esp8266 using the pins marked RX and TX I was getting unknown
-# After moving them up to D7 D8 I get readings on the rest of the sensors
-# 
+#
 uart:
   id: myuart
   tx_pin: 32
@@ -88,7 +85,9 @@ sensor:
       name: Detection Distance
   - platform: wifi_signal
     name: "ttgo wifi signal"
-    update_interval: 60s      
+    update_interval: 60s
+    id: ttgo_wifiSignal
+
 
 binary_sensor:
   - platform: ld2410
@@ -181,8 +180,14 @@ color:
     green: 50%
     blue: 50%
 spi:
-  clk_pin: GPIO18
-  mosi_pin: GPIO19
+  - id: ttgodisplayspi
+    clk_pin: GPIO18
+    mosi_pin: GPIO19
+  - id: max7219spi
+    clk_pin: GPIO25
+    mosi_pin: GPIO27
+  
+  
 
 font:
   - file: "gfonts://Roboto"
@@ -198,11 +203,26 @@ font:
   - file: 'fonts/SourceSansPro-Regular.ttf'
     id: sourcesans14
     size: 14
+  - file: 'fonts/pixelmix.ttf'
+    id: pixelmix_font
+    size: 8
 
 display:
+  - platform: max7219digit
+    cs_pin: GPIO26
+    spi_id: max7219spi
+    num_chips: 4
+    intensity: 15
+    update_interval: 1s
+    scroll_speed: 40ms    
+    lambda: |-
+      it.printf(0, 0, id(pixelmix_font), "S %.0f%%", id(ld2410_stillEnergy).state );
+
+#
   - platform: st7789v
     model: TTGO TDisplay 135x240
     backlight_pin: GPIO4
+    spi_id: ttgodisplayspi
     cs_pin: GPIO5
     dc_pin: GPIO16
     reset_pin: GPIO23
@@ -215,7 +235,7 @@ display:
           it.rectangle(0, 20, it.get_width(), it.get_height(), id(my_blue));   // header bar
           if (id(system_status).state) {
             it.print(235, 3, id(sourcesans14), id(my_yellow), TextAlign::TOP_RIGHT, "Online");
-            it.printf(2, 3, id(sourcesans14),  "%s %s", id(esp_ip_address).state.c_str(), id(esp_connected_ssid).state.c_str());
+            it.printf(2, 3, id(sourcesans14),  "%s %s %.0f%", id(esp_ip_address).state.c_str(), id(esp_connected_ssid).state.c_str(), id(ttgo_wifiSignal).state );
             it.strftime(2, 18, id(sourcesans14), "%H:%M:%S", id(sntp_time).now());
           }
           else {
@@ -249,7 +269,7 @@ display:
           it.rectangle(0, 20, it.get_width(), it.get_height(), id(my_blue));   // header bar
           if (id(system_status).state) {
             it.print(235, 3, id(sourcesans14), id(my_yellow), TextAlign::TOP_RIGHT, "Online");
-            it.printf(2, 3, id(sourcesans14),  "%s %s", id(esp_ip_address).state.c_str(), id(esp_connected_ssid).state.c_str());
+            it.printf(2, 3, id(sourcesans14),  "%s %s %.0f%", id(esp_ip_address).state.c_str(), id(esp_connected_ssid).state.c_str(), id(ttgo_wifiSignal).state );
             it.strftime(2, 18, id(sourcesans14), "%H:%M:%S", id(sntp_time).now());
           }
           else {
